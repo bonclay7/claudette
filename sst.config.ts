@@ -7,7 +7,6 @@ export default $config({
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage),
       home: "aws",
-      // Tag every AWS resource for cost tracking and resource filtering
       providers: {
         aws: {
           defaultTags: {
@@ -33,6 +32,9 @@ export default $config({
       },
       primaryIndex: { hashKey: "pk", rangeKey: "sk" },
     });
+
+    // Single CloudFront distribution for all traffic
+    const router = new sst.aws.Router("Router");
 
     audioBucket.subscribe(
       {
@@ -63,12 +65,23 @@ export default $config({
       },
     );
 
-    const api = new sst.aws.Function("Api", {
+    // API Gateway HTTP API — no public Lambda Function URL
+    const api = new sst.aws.ApiGatewayV2("Api");
+
+    api.route("$default", {
       handler: "src/api.handler",
-      url: true,
       link: [table, audioBucket],
     });
 
+    // Route /api/* on CloudFront → API Gateway, stripping the /api prefix
+    router.route("/api", api.url, {
+      rewrite: {
+        regex: "^/api/(.*)$",
+        to: "/$1",
+      },
+    });
+
+    // Static site at / on the same CloudFront distribution
     const web = new sst.aws.StaticSite("Web", {
       path: "web",
       build: {
@@ -76,14 +89,16 @@ export default $config({
         output: "dist",
       },
       environment: {
-        VITE_API_URL: api.url,
+        VITE_API_URL: "/api",
+      },
+      router: {
+        instance: router,
       },
       errorPage: "index.html",
     });
 
     return {
-      apiUrl: api.url,
-      webUrl: web.url,
+      url: router.url,
     };
   },
 });
