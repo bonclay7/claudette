@@ -1,4 +1,5 @@
 const API_URL = (import.meta.env.VITE_API_URL as string | undefined) ?? "";
+const DEV_MOCK = import.meta.env.DEV && !import.meta.env.VITE_API_URL;
 
 const slugMatch = window.location.pathname.match(/^\/r\/([^/]+)/);
 const slug = slugMatch?.[1];
@@ -74,15 +75,20 @@ function buildRecorder(): void {
     setStatus("Sending your request...", "loading");
 
     try {
-      const res = await fetch(`${API_URL}/r/${slug}/request`, {
-        method: "POST",
-        headers: { "Content-Type": mimeType },
-        body: blob,
-      });
+      if (!DEV_MOCK) {
+        const res = await fetch(`${API_URL}/r/${slug}/request`, {
+          method: "POST",
+          headers: { "Content-Type": mimeType },
+          body: blob,
+        });
 
-      if (!res.ok) {
-        const err = (await res.json().catch(() => ({}))) as { error?: string };
-        throw new Error(err.error ?? "Upload failed");
+        if (!res.ok) {
+          const err = (await res.json().catch(() => ({}))) as { error?: string };
+          throw new Error(err.error ?? "Upload failed");
+        }
+      } else {
+        // Simulate network delay in dev
+        await new Promise((r) => setTimeout(r, 1200));
       }
 
       setStatus(
@@ -120,9 +126,14 @@ async function main(): Promise<void> {
   }
 
   try {
-    const res = await fetch(`${API_URL}/r/${slug}`);
-    if (!res.ok) throw new Error("Not found");
-    const data = (await res.json()) as { name: string };
+    let data: { name: string };
+    if (DEV_MOCK) {
+      data = { name: "Marie Dupont (dev)" };
+    } else {
+      const res = await fetch(`${API_URL}/r/${slug}`);
+      if (!res.ok) throw new Error("Not found");
+      data = (await res.json()) as { name: string };
+    }
     const nameEl = document.getElementById("customer-name");
     if (nameEl) nameEl.textContent = data.name;
   } catch {

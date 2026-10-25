@@ -10,7 +10,9 @@
       "Bash(git push *)",
       "Bash(git -C /Users/grk/dev/claudette add README.md)",
       "Bash(git -C /Users/grk/dev/claudette commit -m \"docs: add README with setup and deployment guide\")",
-      "Bash(git -C /Users/grk/dev/claudette push)"
+      "Bash(git -C /Users/grk/dev/claudette push)",
+      "Bash(git -C /Users/grk/dev/claudette add -A)",
+      "Bash(git -C /Users/grk/dev/claudette commit -m \"feat: dev mock for local frontend preview\")"
     ]
   }
 }
