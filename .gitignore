@@ -1,0 +1,10 @@
+node_modules/
+.sst/
+dist/
+.env
+.env.*
+!.env.example
+*.js.map
+cdk.out/
+.DS_Store
+*.tsbuildinfo

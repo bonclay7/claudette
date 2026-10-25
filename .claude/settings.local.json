@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(git -C /Users/grk/dev/claudette remote -v)",
+      "Bash(git -C /Users/grk/dev/claudette remote add origin https://github.com/bonclay7/claudette.git)",
+      "WebFetch(domain:github.com)",
+      "WebFetch(domain:raw.githubusercontent.com)",
+      "Bash(git add *)"
+    ]
+  }
+}
