@@ -3,6 +3,7 @@ import {
   DynamoDBDocumentClient,
   GetCommand,
   PutCommand,
+  QueryCommand,
   UpdateCommand,
 } from "@aws-sdk/lib-dynamodb";
 import { Resource } from "sst";
@@ -27,6 +28,7 @@ export async function getCustomer(slug: string): Promise<Customer | null> {
     name: result.Item.name as string,
     contacts: result.Item.contacts as string[],
     language: result.Item.language as string,
+    sessionWindowMinutes: result.Item.sessionWindowMinutes as number | undefined,
     createdAt: result.Item.createdAt as string,
   };
 }
@@ -45,6 +47,24 @@ export async function createRequest(
       },
     }),
   );
+}
+
+export async function queryPendingRequests(slug: string): Promise<Request[]> {
+  const result = await client.send(
+    new QueryCommand({
+      TableName: tableName(),
+      KeyConditionExpression: "pk = :pk AND begins_with(sk, :skPrefix)",
+      FilterExpression: "#status = :status",
+      ExpressionAttributeNames: { "#status": "status" },
+      ExpressionAttributeValues: {
+        ":pk": `CUSTOMER#${slug}`,
+        ":skPrefix": "REQUEST#",
+        ":status": "pending_batch",
+      },
+    }),
+  );
+
+  return (result.Items ?? []) as Request[];
 }
 
 export async function updateRequest(

@@ -12,7 +12,12 @@
       "Bash(git -C /Users/grk/dev/claudette commit -m \"docs: add README with setup and deployment guide\")",
       "Bash(git -C /Users/grk/dev/claudette push)",
       "Bash(git -C /Users/grk/dev/claudette add -A)",
-      "Bash(git -C /Users/grk/dev/claudette commit -m \"feat: dev mock for local frontend preview\")"
+      "Bash(git -C /Users/grk/dev/claudette commit -m \"feat: dev mock for local frontend preview\")",
+      "Bash(git *)",
+      "mcp__claude_ai_Claude_Docs__batch",
+      "mcp__claude_ai_Claude_Docs__guide",
+      "mcp__claude_ai_Claude_Docs__update",
+      "mcp__claude_ai_Claude_Docs__read"
     ]
   }
 }

@@ -3,6 +3,7 @@ export interface Customer {
   name: string;
   contacts: string[]; // email addresses
   language: string; // e.g. "en-US"
+  sessionWindowMinutes?: number; // inactivity window before batching, default 5
   createdAt: string;
 }
 
@@ -11,7 +12,7 @@ export interface Request {
   slug: string;
   audioKey: string;
   audioFormat: string;
-  status: "pending" | "transcribing" | "processing" | "notified" | "failed";
+  status: "pending" | "transcribing" | "pending_batch" | "processing" | "notified" | "failed";
   transcript?: string;
   tasks?: Task[];
   createdAt: string;

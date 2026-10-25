@@ -7,6 +7,7 @@ export default $config({
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage),
       home: "aws",
+      // Tag every AWS resource for cost tracking and resource filtering
       providers: {
         aws: {
           defaultTags: {
@@ -33,28 +34,38 @@ export default $config({
       primaryIndex: { hashKey: "pk", rangeKey: "sk" },
     });
 
-    // Single CloudFront distribution for all traffic
-    const router = new sst.aws.Router("Router");
+    // Batch queue — delayed messages trigger the batcher after each customer's
+    // inactivity window, allowing multiple recordings to be processed together.
+    const batchQueue = new sst.aws.Queue("BatchQueue");
 
+    batchQueue.subscribe({
+      handler: "src/batcher.handler",
+      timeout: "5 minutes",
+      link: [table, audioBucket, fromEmail],
+      permissions: [
+        {
+          actions: ["bedrock:InvokeModel"],
+          resources: ["*"],
+        },
+        {
+          actions: ["ses:SendEmail", "ses:SendRawEmail"],
+          resources: ["*"],
+        },
+      ],
+    });
+
+    // Worker: transcribes audio then enqueues a batch message
     audioBucket.subscribe(
       {
         handler: "src/worker.handler",
         timeout: "10 minutes",
-        link: [table, audioBucket, fromEmail],
+        link: [table, audioBucket, batchQueue],
         permissions: [
           {
             actions: [
               "transcribe:StartTranscriptionJob",
               "transcribe:GetTranscriptionJob",
             ],
-            resources: ["*"],
-          },
-          {
-            actions: ["bedrock:InvokeModel"],
-            resources: ["*"],
-          },
-          {
-            actions: ["ses:SendEmail", "ses:SendRawEmail"],
             resources: ["*"],
           },
         ],
@@ -64,6 +75,9 @@ export default $config({
         filterPrefix: "audio/",
       },
     );
+
+    // Single CloudFront distribution for all traffic
+    const router = new sst.aws.Router("Router");
 
     // API Gateway HTTP API — no public Lambda Function URL
     const api = new sst.aws.ApiGatewayV2("Api");

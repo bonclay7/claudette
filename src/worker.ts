@@ -1,13 +1,10 @@
 import type { S3Handler } from "aws-lambda";
-import { S3Client, GetObjectCommand } from "@aws-sdk/client-s3";
-import { getSignedUrl } from "@aws-sdk/s3-request-presigner";
+import { SQSClient, SendMessageCommand } from "@aws-sdk/client-sqs";
 import { Resource } from "sst";
 import { getCustomer, updateRequest } from "./db.js";
 import { transcribeAudio } from "./transcribe.js";
-import { parseTasks } from "./bedrock.js";
-import { sendRequestNotification } from "./email.js";
 
-const s3 = new S3Client({});
+const sqs = new SQSClient({});
 
 export const handler: S3Handler = async (event) => {
   for (const record of event.Records) {
@@ -18,7 +15,6 @@ export const handler: S3Handler = async (event) => {
       await processRecord(key, bucketName);
     } catch (err) {
       console.error(`Failed to process ${key}:`, err);
-      // Best-effort status update — don't throw so other records still process
       try {
         const { slug, requestId } = parseKey(key);
         await updateRequest(slug, requestId, { status: "failed" });
@@ -38,41 +34,30 @@ async function processRecord(key: string, bucketName: string): Promise<void> {
     return;
   }
 
-  // Transcribe
   await updateRequest(slug, requestId, { status: "transcribing" });
 
-  const s3Uri = `s3://${bucketName}/${key}`;
   const transcript = await transcribeAudio({
     jobName: requestId,
-    s3Uri,
+    s3Uri: `s3://${bucketName}/${key}`,
     mediaFormat: format,
     languageCode: customer.language,
     outputBucket: Resource.AudioBucket.name,
   });
 
-  await updateRequest(slug, requestId, { status: "processing", transcript });
+  await updateRequest(slug, requestId, { status: "pending_batch", transcript });
 
-  // Parse tasks with Claude
-  const tasks = await parseTasks(transcript, customer.name);
+  // Enqueue a delayed batch job — fires after the customer's inactivity window.
+  // Multiple presses within the window each enqueue a message; the batcher is
+  // idempotent and only the first message to find pending requests does work.
+  const delaySeconds = Math.min((customer.sessionWindowMinutes ?? 5) * 60, 900);
 
-  // Generate signed URL for audio playback (valid 7 days)
-  const audioSignedUrl = await getSignedUrl(
-    s3,
-    new GetObjectCommand({ Bucket: bucketName, Key: key }),
-    { expiresIn: 60 * 60 * 24 * 7 },
+  await sqs.send(
+    new SendMessageCommand({
+      QueueUrl: Resource.BatchQueue.url,
+      MessageBody: JSON.stringify({ slug }),
+      DelaySeconds: delaySeconds,
+    }),
   );
-
-  // Notify contacts
-  await sendRequestNotification({
-    contacts: customer.contacts,
-    customerName: customer.name,
-    transcript,
-    tasks,
-    audioSignedUrl,
-    fromEmail: Resource.FromEmail.value,
-  });
-
-  await updateRequest(slug, requestId, { status: "notified", tasks });
 }
 
 /** audio/{slug}/{requestId}.{format} */

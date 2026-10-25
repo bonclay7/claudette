@@ -6,7 +6,7 @@ import type { Task } from "./types.js";
 
 const client = new BedrockRuntimeClient({});
 
-const MODEL_ID = "anthropic.claude-3-5-haiku-20241022-v1:0";
+const MODEL_ID = "anthropic.claude-haiku-4-5-20251001-v1:0";
 
 export async function parseTasks(
   transcript: string,
