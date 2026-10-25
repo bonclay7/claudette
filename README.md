@@ -20,6 +20,8 @@ A voice-first help request app for elderly people. Press a button, speak your ne
 - **Email** — AWS SES
 - **Infrastructure** — SST Ion v3 (TypeScript, AWS-only)
 
+All AWS resources are tagged with `app=claudette`, `stage=<stage>`, and `managed-by=sst` for cost tracking.
+
 ## Prerequisites
 
 - Node.js 22+
@@ -37,6 +39,17 @@ npx sst install   # generates local type definitions
 
 ## Deploy
 
+### First deploy
+
+Set the `FromEmail` secret (stored in SSM, only needs to be set once per stage):
+
+```bash
+npx sst secret set FromEmail help@yourdomain.com --stage dev
+npx sst secret set FromEmail help@yourdomain.com --stage production
+```
+
+Then deploy:
+
 ```bash
 npx sst deploy --stage dev
 ```
@@ -49,11 +62,13 @@ SST will print the outputs when it finishes:
    WebUrl: https://xxxx.cloudfront.net
 ```
 
-The `FROM_EMAIL` environment variable must be set to a SES-verified address:
+### Subsequent deploys
 
 ```bash
-FROM_EMAIL=help@yourdomain.com npx sst deploy --stage dev
+npx sst deploy --stage dev
 ```
+
+The secret persists in SSM — no need to pass it again.
 
 ## Onboard a customer
 
@@ -93,21 +108,69 @@ Share that URL with the customer. That's it — no app to install, no password.
 npx sst dev
 ```
 
-This deploys a dev stage to AWS with live Lambda reloading. The frontend can be run locally with:
+This deploys a dev stage to AWS with live Lambda reloading. The frontend can be run locally against it:
 
 ```bash
 cd web
 VITE_API_URL=<your-api-url> npm run dev
 ```
 
-## CI
+## CI/CD
 
-GitHub Actions runs on every push and pull request to `main`:
+### CI (all branches)
 
-- **Type check** — root (`src/`, `scripts/`) and `web/`
-- **Lint** — `src/` and `scripts/`
+GitHub Actions runs typecheck and lint on every push and pull request.
 
-No deployment happens in CI. Deploy manually or add a workflow step once you have AWS credentials stored as repository secrets (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, `AWS_REGION`).
+### Production deploy (automatic)
+
+A separate workflow deploys to production automatically after CI passes on `main`. It can also be triggered manually from the GitHub Actions tab.
+
+The workflow uses **AWS OIDC** (no long-lived access keys). One-time setup:
+
+**1. Create an IAM Identity Provider in AWS**
+
+In the IAM console → Identity providers → Add provider:
+- Provider type: OpenID Connect
+- Provider URL: `https://token.actions.githubusercontent.com`
+- Audience: `sts.amazonaws.com`
+
+**2. Create an IAM role for GitHub Actions**
+
+Create a role with this trust policy (replace `bonclay7/claudette` with your repo):
+
+```json
+{
+  "Version": "2012-10-17",
+  "Statement": [{
+    "Effect": "Allow",
+    "Principal": { "Federated": "arn:aws:iam::<ACCOUNT_ID>:oidc-provider/token.actions.githubusercontent.com" },
+    "Action": "sts:AssumeRoleWithWebIdentity",
+    "Condition": {
+      "StringEquals": { "token.actions.githubusercontent.com:aud": "sts.amazonaws.com" },
+      "StringLike": { "token.actions.githubusercontent.com:sub": "repo:bonclay7/claudette:*" }
+    }
+  }]
+}
+```
+
+Attach `AdministratorAccess` (or a scoped policy covering IAM, Lambda, S3, DynamoDB, CloudFront, SSM, SES, Transcribe, Bedrock).
+
+**3. Add GitHub secrets**
+
+In the repo → Settings → Secrets and variables → Actions:
+
+| Secret | Value |
+|---|---|
+| `AWS_DEPLOY_ROLE_ARN` | ARN of the role created above |
+| `AWS_REGION` | e.g. `us-east-1` |
+
+**4. Set the `FromEmail` secret for production** (one-time, from your machine)
+
+```bash
+npx sst secret set FromEmail help@yourdomain.com --stage production
+```
+
+After that, every push to `main` that passes CI will deploy to production automatically.
 
 ## Project structure
 
@@ -133,8 +196,8 @@ sst.config.ts     Infrastructure definition
 
 | Stage | Purpose |
 |---|---|
-| `dev` | Development — resources are deleted on `sst remove` |
-| `production` | Production — S3 and DynamoDB are retained on `sst remove` |
+| `dev` | Development — resources deleted on `sst remove` |
+| `production` | Production — S3 and DynamoDB retained on `sst remove` |
 
 ```bash
 npx sst deploy --stage production

@@ -7,9 +7,23 @@ export default $config({
       removal: input?.stage === "production" ? "retain" : "remove",
       protect: ["production"].includes(input?.stage),
       home: "aws",
+      // Tag every AWS resource for cost tracking and resource filtering
+      providers: {
+        aws: {
+          defaultTags: {
+            tags: {
+              app: "claudette",
+              stage: input?.stage ?? "dev",
+              "managed-by": "sst",
+            },
+          },
+        },
+      },
     };
   },
   async run() {
+    const fromEmail = new sst.Secret("FromEmail");
+
     const audioBucket = new sst.aws.Bucket("AudioBucket");
 
     const table = new sst.aws.Dynamo("Table", {
@@ -24,7 +38,7 @@ export default $config({
       {
         handler: "src/worker.handler",
         timeout: "10 minutes",
-        link: [table, audioBucket],
+        link: [table, audioBucket, fromEmail],
         permissions: [
           {
             actions: [

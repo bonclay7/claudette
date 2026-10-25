@@ -5,7 +5,12 @@
       "Bash(git -C /Users/grk/dev/claudette remote add origin https://github.com/bonclay7/claudette.git)",
       "WebFetch(domain:github.com)",
       "WebFetch(domain:raw.githubusercontent.com)",
-      "Bash(git add *)"
+      "Bash(git add *)",
+      "Bash(git commit *)",
+      "Bash(git push *)",
+      "Bash(git -C /Users/grk/dev/claudette add README.md)",
+      "Bash(git -C /Users/grk/dev/claudette commit -m \"docs: add README with setup and deployment guide\")",
+      "Bash(git -C /Users/grk/dev/claudette push)"
     ]
   }
 }

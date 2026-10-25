@@ -69,7 +69,7 @@ async function processRecord(key: string, bucketName: string): Promise<void> {
     transcript,
     tasks,
     audioSignedUrl,
-    fromEmail: process.env.FROM_EMAIL ?? "noreply@example.com",
+    fromEmail: Resource.FromEmail.value,
   });
 
   await updateRequest(slug, requestId, { status: "notified", tasks });
